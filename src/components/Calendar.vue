@@ -1,5 +1,17 @@
 <template>
+
   <div class="calendar">
+
+    <div v-if="showModal == true" class="inputModal" @click.self="closeModal">
+      <div class="inner">
+        <div class="close-btn">
+          <span @click="closeModal">×</span>
+        </div>
+        <input type="text" placeholder="予定を入力" v-model="inputSchedule">
+        <button type="button" @click="addSchedule">OK</button>
+      </div>
+    </div>
+
     <div class="calendar__nav">
       <div class="calendar__nav-item" v-on:click="movePrevMonth">
         <span class="arrow left"></span>{{ getPrevMonth(calDate.month) }}
@@ -23,17 +35,20 @@
         <tr v-for="week in calendar">
           <td
           v-for="(day, index) in week"
-          :class="['cel-' + index, { today:today == day.date }, { otherday:day.month != calDate.month} ]">
+          :class="['cel-' + index, { today:today == day.date }, { otherday:day.month != calDate.month} ]"
+          @click="modalOpen(day.date, day.schedule)">
             <span class="day">{{ day.day }}</span>
+            <span class="schedule" v-for="(val, index) in day.schedule">{{ val.name }}</span>
           </td>
         </tr>
       </tbody>
     </table>
   </div>
-
 </template>
 
 <script>
+var _ = require('lodash');
+
 export default {
   name: 'Calendar',
   data () {
@@ -41,6 +56,16 @@ export default {
       weeks: ['MON','TUE','WED','THU','FRI','SAT','SUN'],
       calDate: { year: 0, month: 0 },
       monthName: ['1','2','3','4','5','6','7','8','9','10','11','12'],
+      schedules: [
+        { date: '2018-06-05', name: '予定1' },
+        { date: '2018-06-15', name: '予定2' },
+        { date: '2018-06-16', name: '予定3' },
+        { date: '2018-06-23', name: '予定4' },
+        { date: '2018-06-25', name: '予定5' },
+      ],
+      showModal: false,
+      inputDate: null,
+      inputSchedule: null,
     }
   },
   created: function() {
@@ -92,7 +117,7 @@ export default {
       if (this.calDate.month == 1) {
         this.calDate.year--;
         this.calDate.month = 12;
-      }else {
+      } else {
         this.calDate.month--;
       }
     },
@@ -101,10 +126,34 @@ export default {
       if (this.calDate.month == 12) {
         this.calDate.year++;
         this.calDate.month = 1;
-      }else {
+      } else {
         this.calDate.month++;
       }
     },
+    getSchedule: function(date) {
+      var schedules = _.filter(this.schedules, { 'date': date });
+      return schedules;
+    },
+    modalOpen: function(date, schedule) {
+      this.inputDate = date;
+      if(schedule.length != 0) {
+        this.inputSchedule = schedule[0].name;
+      } else {
+        this.inputSchedule = null;
+      }
+
+      this.showModal = true;
+    },
+    closeModal: function() {
+      this.showModal = false;
+    },
+    addSchedule: function() {
+
+      this.schedules = _.reject(this.schedules, { 'date': this.inputDate });
+      var data = { date: this.inputDate, name: this.inputSchedule };
+      this.schedules.push(data)
+      this.showModal = false;
+    }
   },
   computed: {
     calendar: function() {
@@ -120,11 +169,6 @@ export default {
         firstDay = firstDay_s - 1;
       }
 
-      var thisDate;
-      // 確認用
-      // console.log(firstDay_s);
-      // console.log(firstDay);
-
       // 今月の最終日を取得
       // 第３引数に0を指定するとthis.calDateの最後の日を取得
       var lastDate = new Date(this.calDate.year, this.calDate.month, 0).getDate();
@@ -136,7 +180,6 @@ export default {
       var nextDayCount = 1;
 
       var calendar = [];
-      // console.log(today)
 
       // 6回繰り返す
       for (var w = 0; w < 6; w++) {
@@ -144,36 +187,39 @@ export default {
 
         // 空白の行をなくす
         // 最終日より大きくなったら終了
-        if (lastDate < dayCount) {break;}
+        if (lastDate < dayCount) { break; }
 
         // 7回繰り返す
         for (var d = 0; d < 7; d++) {
-          if (w == 0 && d < firstDay) { // 1週目でなおかつ最初の曜日より少なければ空セル
+          if (w == 0 && d < firstDay) { // 1週目でなおかつ最初の曜日より少ない
             // 先月の日付を代入 [20xx-xx-xx]
             var prevDate = this.getPrevYear(this.calDate.month) + '-' + ('0' + this.getPrevMonth(this.calDate.month)).slice(-2) + '-' + ('0' + (preLastDate - preDayCount)).slice(-2)
             week[d] = {
               day: this.getPrevMonth(this.calDate.month) + '/' + (preLastDate - preDayCount),
               month: this.getPrevMonth(this.calDate.month),
               date: prevDate,
+              schedule: this.getSchedule(prevDate),
             };
             preDayCount--;
-          } else if (lastDate < dayCount) { // 現在の日付が最終日より大きければ空セル
+          } else if (lastDate < dayCount) { // 現在の日付が最終日より大きい
             // 来月の日付を代入 [20xx-xx-xx]
             var nextDate = this.getNextYear(this.calDate.month) + '-' + ('0' + this.getNextMonth(this.calDate.month)).slice(-2) + '-' + ('0' + nextDayCount).slice(-2)
             week[d] = {
               day: this.getNextMonth(this.calDate.month) + '/' + nextDayCount,
               month: this.getNextMonth(this.calDate.month),
               date: nextDate,
+              schedule: this.getSchedule(nextDate),
             };
             dayCount++;
             nextDayCount++;
           } else {
             // 本日の日付を代入 [20xx-xx-xx]
-            thisDate = this.calDate.year + '-' + ('0' + this.calDate.month).slice(-2) + '-' + ('0' + dayCount).slice(-2)
+            var thisDate = this.calDate.year + '-' + ('0' + this.calDate.month).slice(-2) + '-' + ('0' + dayCount).slice(-2)
             week[d] = {
               day: dayCount,
               month: this.calDate.month,
               date: thisDate,
+              schedule: this.getSchedule(thisDate),
             };
             dayCount++;
           }
@@ -200,7 +246,6 @@ $info: #5bc0de;
 $warning: #f0ad4e;
 $danger: #d9534f;
 .calendar {
-
   font-weight: bold;
 
   thead {
@@ -276,6 +321,12 @@ $danger: #d9534f;
 			font-size: medium;
 			font-weight: bold;
 		}
+    .schedule {
+      display: block;
+      background-color: $info;
+      color: #EEEEEE;
+      font-size: small;
+    }
   }
 
   .calendar__nav {
@@ -350,6 +401,35 @@ $danger: #d9534f;
         font-size: 30px;
       }
     }
+	}
+
+  .inputModal {
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		background-color: rgba(0, 0, 0, .5);
+		z-index: 1001;
+		.inner {
+			position: absolute;
+			width: 50%;
+			background-color: #FFFFFF;
+			left: 0;
+			right: 0;
+			top: 15%;
+			margin: 0 auto;
+			border-radius: 4px;
+			padding: 20px;
+			.close-btn {
+				position: absolute;
+				top: 15px;
+        color: $danger;
+        border: solid 2px $danger;
+        padding: 0 6px;
+        border-radius: 50%;
+				cursor: pointer;
+				font-size: 20px;
+			}
+		}
 	}
 }
 
